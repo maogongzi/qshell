@@ -87,24 +87,24 @@ before choosing a value for `up_host`, please take the following options into co
 
 By default, the program itself will not check whether there is already a file with the same name, therefore, the uploading process will fail if a file with the same name exists, at this moment, the program either overrides the existing file if `override` is set to `true` or reports and error `{"error":"file exists"}`.
 
-如果设置了`check_exists`为`true`, 那么同步程序在上传每个文件之前, 会检查空间中是否存在同名文件, 如果发现同名文件的话, 它会根据`check_hash`和`check_size`的值来做进一步的匹配检查, 如果最后确认文件内容或者大小一致, 那么就不再重复同步这个文件, 否则会根据`overwrite`的状态决定是否去强制覆盖.
+The program will check whether there is an existing copy using the same name in the remote bucket before start uploading a file if `check_exists` is set to `true`, further checking will be made to the found copy based on `check_hash` and `check_size`, finally, the synchronization process will be cancelled if it's confirmed that the content or size of the two files is the same, or the copy will be overrided depending on `overwrite`.
 
-其中`check_hash`设置为`true`的时候会在`check_exists`发现文件已在空间存在的情况下, 计算本地文件的hash来和空间中的文件hash进行匹配, 如果一致则不重复同步, 否则在`overwrite`为`true`的情况下会去强制覆盖.
+To make it more clear, given that `check_exists` and `check_hash` both set to `true` and a possible remote copy has been found, the program will calculate the hashes of both the local file and remote copy then compare them, synchronization will be cancelled if the hashes match with each other, otherwise it will forcibly override the existing remote copy when `overwrite` set to `true`.
 
-因为计算本地文件的hash在文件较大的情况下可能会比较耗时, 如果你确信空间中如果存在同名文件的话, 那么它的内容肯定是和本地一致的, 那么做简单的文件大小检查可以节约很多时间, 这个`check_size`为`true`将在`check_exists`为`true`, 同时`check_hash`为`false`的时候生效, 仅检查本地文件大小是否和远程的一致, 如果不一致, 那么在`overwrite`为`true`的情况下会去强制覆盖.
+Since it's a time-consuming task to calculate file hash if it is very big in size, you may want to simply apply a file-size checking to save your time if you are sure that there would be a copy with the same name and content in the remote bucket. Thus, the `check_size` option will come in to play when `check_exists` set to `true` and `check_hash` set to `false`, it will only check the sizes of the local file and it's possible remote copy and forcibly override the remote one when the sizes don't match and `overwrite` set to `true`.
 
-**关于`skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings`和`skip_suffixes`**
+**About `skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings` and `skip_suffixes`**
 
- `skip_file_prefixes` 根据文件名（不带相对路径）的前缀来跳过, 不上传匹配的文件
- `skip_path_prefixes` 根据文件路径（相对路径）的前缀来跳过, 不上传匹配的文件
- `skip_fixed_strings` 根据文件路径（相对路径）中包含的字符串来跳过, 不上传路径中含有指定字符串列表中字符串的文件
- `skip_suffixes` 根据文件的后缀或者目录的后缀来跳过, 不上传文件或者匹配目录下的文件
- 
- `skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings`和 `skip_suffixes` 里面都可以指定多个要忽略的文件或目录前缀或者后缀或者子字符串, 彼此用`逗号`分开, 另外字符串两边的空白字符会被忽略.
- 
- 比如对于目录  `/Users/jemy/Temp/upload` 下的文件, `src_dir`设置为 `/Users/jemy/Temp/upload`
- 
- 那么
+ `skip_file_prefixes` will skip uploading files according to their names(without relative paths)
+ `skip_path_prefixes` will skip uploading files according to their relative paths
+ `skip_fixed_strings` will skip uploading files if given strings found in their relative paths.
+ `skip_suffixes` will skip uploading files or folders if they have a given suffix.
+
+ `skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings` and `skip_suffixes` all support multiple values of files or folders or suffixes or strings separated by comma, the leading and trailing whitespaces will be ignored.
+
+ For example, according to files inside of folder `/Users/jemy/Temp/upload`, given that `src_dir` set to `/Users/jemy/Temp/upload`,
+
+ Then:
  
 ```
  jemy@jemy-MacBook ~/Temp/upload $ tree
@@ -116,20 +116,22 @@ By default, the program itself will not check whether there is already a file wi
      └── cloud-market-3.jpg
 ```
  
-我们可以设置`skip_suffixes` 为 `.txt` 来忽略txt文件, 或者`skip_path_prefixes`为`test`来跳过`test`文件夹不上传.
+We can set `skip_suffixes` to `.txt` to ignore txt files, or `skip_path_prefixes` to `test` to ignore the whole `test` folder.
  
-注意：`skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings` 和 `skip_suffixes` 均不支持通配符.
+Notice: `skip_file_prefixes`, `skip_path_prefixes`, `skip_fixed_strings` and `skip_suffixes` all don't support wildcards.
 
-**关于`ignore_dir`和`key_prefix`**
+**About`ignore_dir` and `key_prefix`**
 
-所谓的`ignore_dir`的意思, 举个例子, 我们要同步目录`/Users/jemy/Temp`目录下的文件, 该目录下的文件结构如下：
+The meaning of `ignore_dir`, for example, if we want to synchronize the files inside of the folder `/Users/jemy/Temp`, which has a tree structure like below:
+
 ```
 .
 ├── f1
 │   └── world.txt
 └── hello.txt
 ```
-如果我们忽略文件路径(ignore_dir=true), 那么保存在七牛空间中的文件名将是`world.txt`和`hello.txt`.如果不忽略文件路径(ignore_dir=false), 那么保存在七牛空间中的文件名将是`f1/world.txt`和`hello.txt`.
+
+If we ignore file paths(ignore_dir=true), then the files to be saved in the remote bucket will be `world.txt` and `hello.txt`, but if we dont' ignore file paths(ignore_dir=false), then the files to be saved will become `f1/world.txt` and `hello.txt`.
 
 如果指定`key_prefix`这个参数, 那么程序将在本地的文件名前面加上这个字符串.这个`key_prefix`在`ignore_dir`的基础上生效, 比如我们忽略文件路径(ignore_dir=true)的情况下, `key_prefix`指定为`2015/01/18/`, 那么最终保存在七牛的文件名将是`2015/01/18/hello.txt`和`2015/01/18/world.txt`, 如果我们不忽略文件路径(ignore_dir=false)的情况下, `key_prefix`指定为`2015/01/18/`, 那么最终保存在七牛的文件名将是`2015/01/18/f1/world.txt`和`2015/01/18/hello.txt`.
 
